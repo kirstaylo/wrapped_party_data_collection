@@ -97,28 +97,44 @@ def summary() -> str:
     all_data = {}
 
     for tr in time_ranges:
+        print(f"🔄 Collecting data for time range: {tr}")
+
         # Make subfolders for each time range
         range_dir = os.path.join(user_dir, tr)
         os.makedirs(range_dir, exist_ok=True)
 
-        # Artists
-        artists = sp.current_user_top_artists(limit=20, time_range=tr)["items"]
-        artist_df = pd.DataFrame(
-            [{"Rank": i + 1, "Artist": a["name"], "ID": a["id"]}
-             for i, a in enumerate(artists)]
-        )
-        artist_df.to_csv(os.path.join(range_dir, "artists.csv"), index=False)
+        # --- Top Artists ---
+        artists = sp.current_user_top_artists(limit=20, time_range=tr).get("items", [])
+        if artists:
+            artist_df = pd.DataFrame(
+                [{
+                    "Rank": i + 1,
+                    "Artist": a.get("name", "Unknown Artist"),
+                    "ID": a.get("id", "")
+                } for i, a in enumerate(artists)]
+            )
+            artist_out = os.path.join(range_dir, "artists.csv")
+            artist_df.to_csv(artist_out, index=False)
+            print(f"✅ Saved {len(artist_df)} artists to {artist_out}")
+        else:
+            print(f"⚠️ No top artists found for {tr}")
 
-        # Tracks
-        tracks = get_top_tracks(sp, tr, total_limit=100)
-        track_df = pd.DataFrame(
-            [{"Rank": i + 1,
-              "Track": t["name"],
-              "Artist": t["artists"][0]["name"],
-              "ID": t["id"]}
-             for i, t in enumerate(tracks)]
-        )
-        track_df.to_csv(os.path.join(range_dir, "tracks.csv"), index=False)
+        # --- Top Tracks ---
+        tracks = get_top_tracks(sp, tr, total_limit=100) or []
+        if tracks:
+            track_df = pd.DataFrame(
+                [{
+                    "Rank": i + 1,
+                    "Track": t.get("name", "Unknown Track"),
+                    "Artist": (t.get("artists") or [{}])[0].get("name", "Unknown Artist"),
+                    "ID": t.get("id", "")
+                } for i, t in enumerate(tracks)]
+            )
+            track_out = os.path.join(range_dir, "tracks.csv")
+            track_df.to_csv(track_out, index=False)
+            print(f"✅ Saved {len(track_df)} tracks to {track_out}")
+        else:
+            print(f"⚠️ No top tracks found for {tr}")
 
         all_data[tr] = {"artists": artists, "tracks": tracks}
 
