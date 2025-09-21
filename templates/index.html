@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spotify Wrapped Party Data Collection Portal 🎶</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    function checkName() {
+      const nameInput = document.getElementById("custom_name");
+      const loginBtn = document.getElementById("loginBtn");
+      loginBtn.disabled = nameInput.value.trim() === "";
+      loginBtn.title = loginBtn.disabled ? "Enter your name above 👆" : "";
+    }
+  </script>
+</head>
+<body class="index-page">
+  <main>
+    <h1>Spotify Wrapped Party Data Collection Portal</h1>
+    <img 
+      src="{{ url_for('static', filename='racoon.jpg') }}" 
+      alt="Party raccoon mascot" 
+      class="racoon"
+    >
+
+    <form action="/login" method="POST" class="login-form">
+      <input 
+        type="text" 
+        id="custom_name" 
+        name="custom_name" 
+        placeholder="Enter your name" 
+        oninput="checkName()" 
+        required
+        class="name-input"
+      >
+      <button id="loginBtn" class="btn login" type="submit" disabled>
+        Login with Spotify
+      </button>
+    </form>
+  </main>
+</body>
+</html>

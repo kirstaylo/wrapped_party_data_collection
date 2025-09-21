@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ display_name }}'s Wrapped</title>
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+  <!-- Your stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="summary-page">
+  <div class="summary-container">
+    
+    <!-- Toggle Buttons -->
+    <div class="time-toggle">
+      <a href="{{ url_for('summary', time_range='short_term') }}" class="btn">Last 4 Weeks</a>
+      <a href="{{ url_for('summary', time_range='medium_term') }}" class="btn">Last 6 Months</a>
+      <a href="{{ url_for('summary', time_range='long_term') }}" class="btn">All Time</a>
+    </div>
+
+    <!-- Title -->
+    <h1>{{ display_name }}'s Wrapped ({{ time_range.replace('_', ' ') }})</h1>
+
+    <!-- Top Tracks -->
+    <div class="tracks">
+      <h2>Your Top Tracks</h2>
+      <div class="grid-wrapper">
+        <div class="grid">
+          {% if tracks %}
+            {% for track in tracks %}
+            <div class="card">
+              {% if track['album']['images'] %}
+              <img src="{{ track['album']['images'][0]['url'] }}" alt="{{ track['name'] }}">
+              {% endif %}
+              <p><strong>{{ loop.index }}. {{ track['name'] }}</strong><br>
+              {{ track['artists'][0]['name'] }}</p>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p>No top tracks found for this range.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Artists -->
+    <div class="artists">
+      <h2>Your Top Artists</h2>
+      <div class="grid-wrapper">
+        <div class="grid">
+          {% if artists %}
+            {% for artist in artists %}
+            <div class="card">
+              {% if artist['images'] %}
+              <img src="{{ artist['images'][0]['url'] }}" alt="{{ artist['name'] }}">
+              {% endif %}
+              <p><strong>{{ loop.index }}. {{ artist['name'] }}</strong></p>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p>No top artists found for this range.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

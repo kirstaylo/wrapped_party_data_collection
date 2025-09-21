@@ -1,0 +1,230 @@
+/* -------- Base Layouts -------- */
+body {
+  font-family: 'Poppins', sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  color: #fff;
+}
+
+/* Index page */
+body.index-page {
+  background: #121212;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* Summary page (animated gradient) */
+body.summary-page {
+  background: linear-gradient(135deg, #1db954, #191414, #9b4de0, #ff8c00);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* -------- Typography -------- */
+h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  margin: 1rem 0;
+}
+
+h2 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 2rem 0 1rem;
+}
+
+p {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+/* -------- Buttons -------- */
+.btn {
+  display: inline-block;
+  padding: 16px 26px;
+  background: #1db954;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 40px;
+  font-weight: 600;
+  font-size: 1.2rem;
+  transition: background 0.3s ease, transform 0.2s ease;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.btn:hover:not(:disabled) {
+  background: #1ed760;
+  transform: scale(1.05);
+}
+
+/* Disabled button */
+.btn:disabled {
+  background: #444;
+  color: #aaa;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* -------- Index Page Elements -------- */
+.racoon {
+  display: block;
+  max-width: 100%;
+  margin: 20px auto;
+  border-radius: 30px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+
+/* -------- Index Page Inputs & Buttons -------- */
+.name-input {
+  width: 95%;              /* nearly full screen on mobile */
+  max-width: 600px;        /* allow them to grow bigger on larger phones */
+  padding: 20px;           /* thicker padding */
+  font-size: 1.5rem;       /* bigger font */
+  border: 4px solid #1db954;
+  border-radius: 16px;
+  outline: none;
+  text-align: center;
+  margin: 1.5rem auto;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.name-input:focus {
+  border-color: #1ed760;
+  box-shadow: 0 0 14px rgba(29,185,84,0.9);
+}
+
+.btn.login {
+  display: block;
+  width: 95%;              /* fills screen on mobile */
+  max-width: 600px;
+  padding: 20px;           /* thicker padding */
+  font-size: 1.5rem;       /* larger text */
+  margin: 1.2rem auto;
+  text-align: center;
+  border-radius: 50px;     /* extra rounded */
+}
+
+
+/* -------- Summary Page Elements -------- */
+.summary-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem 4rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.summary-page h1, 
+.summary-page h2 {
+  text-align: center;
+  width: 100%;
+}
+
+/* Time toggle */
+.time-toggle {
+  margin: 2rem 0 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  justify-content: center;
+}
+
+/* -------- Grid & Cards -------- */
+.grid-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.summary-page .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  justify-items: center;
+}
+
+.summary-page .card {
+  background: rgba(24, 24, 24, 0.85);
+  border-radius: 16px;
+  padding: 0.8rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 160px;
+}
+
+.summary-page .card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+}
+
+.summary-page .card img {
+  width: 100%;
+  max-width: 120px;
+  border-radius: 12px;
+  margin-bottom: 0.6rem;
+  object-fit: cover;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* centers input + button together */
+  gap: 1.2rem;           /* nice consistent spacing instead of <br><br> */
+  width: 100%;
+}
+
+/* -------- Responsive Tweaks -------- */
+@media (max-width: 768px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.3rem; }
+
+  .name-input,
+  .btn.login {
+    width: 95%;
+    font-size: 1.4rem;
+    padding: 18px;
+  }
+
+  .summary-page .grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    max-width: 100%;
+    gap: 0.8rem;
+    padding: 0 0.5rem;
+  }
+
+  .summary-page .card {
+    max-width: 140px;
+    padding: 0.6rem;
+  }
+
+  .summary-page .card img {
+    max-width: 100px;
+  }
+}
