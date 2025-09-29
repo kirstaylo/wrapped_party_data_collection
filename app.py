@@ -218,15 +218,18 @@ def callback():
     )
     code = request.args.get("code")
     token_info = sp_oauth.get_access_token(code)
-    sp = spotipy.Spotify(auth=token_info["access_token"])
+
+    # ✅ Only store minimal info in session
+    session["spotify_token"] = token_info["access_token"]
+    session["spotify_expires_at"] = token_info["expires_at"]
+
+    sp = spotipy.Spotify(auth=session["spotify_token"])
 
     # ✅ Fetch Spotify profile
     profile = sp.current_user()
     spotify_username = profile.get("id", "UnknownSpotifyUser")
     display_name = profile.get("display_name", spotify_username)
 
-    # Store only small values in session
-    session["token_info"] = token_info
     session["spotify_username"] = spotify_username
     session["display_name"] = display_name
     session["custom_name"] = session.get("custom_name", "Unknown_User")
@@ -236,14 +239,18 @@ def callback():
 
     return redirect(url_for("summary"))
 
+
 @app.route("/summary")
 def summary() -> str:
     """Fetch lightweight top artists/tracks for display (fresh API call)."""
-    token_info = session.get("token_info")
-    if not token_info:
+    spotify_username = session.get("spotify_username")
+    spotify_token = session.get("spotify_token")
+
+    if not spotify_username or not spotify_token:
         return redirect(url_for("index"))
 
-    sp = spotipy.Spotify(auth=token_info["access_token"])
+    sp = spotipy.Spotify(auth=spotify_token)
+
     spotify_username = session.get("spotify_username")
     display_name = session.get("display_name", spotify_username)
 
