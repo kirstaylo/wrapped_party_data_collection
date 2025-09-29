@@ -99,14 +99,18 @@ def get_or_create_user_folder(custom_name: str) -> str:
     return folder_id
 
 def upload_to_drive(filepath: str, filename: str, parent_id: str = None) -> str:
-    """Upload CSV file to Google Drive inside the specified folder."""
+    """Upload CSV file to Google Drive inside the specified folder (or fallback to base)."""
     if not drive_service:
         print("⚠️ Google Drive not available. Skipping upload.")
         return ""
 
-    file_metadata = {"name": filename}
-    if parent_id:
-        file_metadata["parents"] = [parent_id]
+    if not FOLDER_ID and not parent_id:
+        raise RuntimeError("🚨 No target folder: GOOGLE_DRIVE_FOLDER_ID and parent_id are missing!")
+
+    file_metadata = {
+        "name": filename,
+        "parents": [parent_id] if parent_id else [FOLDER_ID]
+    }
 
     media = MediaFileUpload(filepath, mimetype="text/csv")
     uploaded = drive_service.files().create(
@@ -115,8 +119,11 @@ def upload_to_drive(filepath: str, filename: str, parent_id: str = None) -> str:
         fields="id, parents"
     ).execute()
 
-    print(f"📤 Uploaded {filename} → folder {parent_id} (id: {uploaded.get('id')})")
+    folder_list = uploaded.get("parents", [])
+    print(f"📤 Uploaded {filename} → folder {folder_list} (id: {uploaded.get('id')})")
+
     return uploaded.get("id")
+
 
 def save_and_upload(df: pd.DataFrame, filepath: str, filename: str, parent_id: str = None):
     """Save CSV locally and upload to Google Drive inside user folder."""
