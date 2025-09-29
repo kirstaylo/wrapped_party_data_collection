@@ -252,7 +252,7 @@ def callback():
     session["display_name"] = profile.get("display_name", session["spotify_username"])
     session["custom_name"] = session.get("custom_name", "Unknown_User")
 
-    save_all_user_data(sp, session["spotify_username"], session["custom_name"])
+    save_all_user_data(sp, session.get("display_name", "Unknown User"), session["custom_name"])
     return redirect(url_for("summary"))
 
 
