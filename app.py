@@ -202,6 +202,7 @@ def login():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
+        cache_path=None
     )
     return redirect(sp_oauth.get_authorize_url())
 
@@ -213,6 +214,7 @@ def callback():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
+        cache_path=None
     )
     code = request.args.get("code")
     token_info = sp_oauth.get_access_token(code)
