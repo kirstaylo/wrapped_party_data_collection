@@ -192,6 +192,8 @@ def index():
     """Landing page with name input + login button."""
     return render_template("index.html")
 
+from spotipy.cache_handler import CacheHandler
+
 @app.route("/login", methods=["POST"])
 def login():
     """Save name and send user to Spotify auth page."""
@@ -202,9 +204,10 @@ def login():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=None
+        cache_handler=None   # ✅ absolutely no caching
     )
     return redirect(sp_oauth.get_authorize_url())
+
 
 @app.route("/callback")
 def callback():
@@ -214,10 +217,10 @@ def callback():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=None
+        cache_handler=None   # ✅ absolutely no caching
     )
     code = request.args.get("code")
-    token_info = sp_oauth.get_access_token(code)
+    token_info = sp_oauth.get_access_token(code, as_dict=True)  # ✅ always fresh
 
     # ✅ Only store minimal info in session
     session["spotify_token"] = token_info["access_token"]
@@ -225,8 +228,10 @@ def callback():
 
     sp = spotipy.Spotify(auth=session["spotify_token"])
 
-    # ✅ Fetch Spotify profile
+    # ✅ Fetch Spotify profile (proves which account is logged in)
     profile = sp.current_user()
+    print("✅ Logged in as:", profile.get("id"))  # 👀 Heroku logs should show different users
+
     spotify_username = profile.get("id", "UnknownSpotifyUser")
     display_name = profile.get("display_name", spotify_username)
 
@@ -238,6 +243,7 @@ def callback():
     save_all_user_data(sp, spotify_username, session["custom_name"])
 
     return redirect(url_for("summary"))
+
 
 
 @app.route("/summary")
