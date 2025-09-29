@@ -5,81 +5,121 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 
-# Load environment variables from .env
+# Google Drive imports (user OAuth)
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+# Load environment variables
 load_dotenv()
 
-# Initialize the Flask app
+# Flask app
 app = Flask(__name__)
-# Use a fixed secret key so sessions persist
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev_secret_key")
 
 # Spotify credentials
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:5000/callback")
-
-# Requested scope
 SCOPE = "user-top-read"
 
+# Google Drive setup
+drive_service = None
+FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
-@app.route("/")
-def index():
-    """Landing page with name input + login button."""
-    return render_template("index.html")
+def init_drive_service():
+    """Load Drive API client using token.json (from OAuth flow)."""
+    global drive_service
+    try:
+        if os.path.exists("token.json"):
+            creds = Credentials.from_authorized_user_file(
+                "token.json",
+                ["https://www.googleapis.com/auth/drive.file"]
+            )
+            drive_service = build("drive", "v3", credentials=creds)
+            print("✅ Google Drive authenticated via token.json")
+        else:
+            print("⚠️ No token.json found. Run drive_auth.py first.")
+    except Exception as e:
+        print(f"⚠️ Failed to init Google Drive service: {e}")
+        drive_service = None
 
+init_drive_service()
 
-@app.route("/login", methods=["POST"])
-def login():
-    """Save name and send user to Spotify auth page."""
-    # Store custom name in session
-    session["custom_name"] = request.form.get("custom_name", "Unknown_User")
+def get_or_create_user_folder(custom_name: str) -> str:
+    """Get or create a Drive folder for this user inside the parent folder."""
+    if not drive_service:
+        print("⚠️ Google Drive not available, skipping folder creation.")
+        return ""
 
-    sp_oauth = SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-    )
-    return redirect(sp_oauth.get_authorize_url())
+    query = f"name='{custom_name}' and mimeType='application/vnd.google-apps.folder'"
+    if FOLDER_ID:
+        query += f" and '{FOLDER_ID}' in parents"
 
+    results = drive_service.files().list(
+        q=query,
+        spaces="drive",
+        fields="files(id, name)",
+        pageSize=1
+    ).execute()
 
-@app.route("/callback")
-def callback():
-    """Spotify redirects here after login approval."""
-    sp_oauth = SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-    )
-    code = request.args.get("code")
-    token_info = sp_oauth.get_access_token(code)
-    session["token_info"] = token_info
-    return redirect(url_for("summary"))
+    folders = results.get("files", [])
+    if folders:
+        folder_id = folders[0]["id"]
+        print(f"📂 Found existing folder for {custom_name}: {folder_id}")
+        return folder_id
 
+    # Create new folder
+    metadata = {
+        "name": custom_name,
+        "mimeType": "application/vnd.google-apps.folder"
+    }
+    if FOLDER_ID:
+        metadata["parents"] = [FOLDER_ID]
 
-@app.route("/summary")
-def summary() -> str:
-    """Fetch + save top artists/tracks for all terms and render summary page."""
+    folder = drive_service.files().create(body=metadata, fields="id").execute()
+    folder_id = folder.get("id")
+    print(f"📁 Created new folder for {custom_name}: {folder_id}")
+    return folder_id
 
-    # Require login
-    token_info = session.get("token_info")
-    if not token_info:
-        return redirect(url_for("index"))
+def upload_to_drive(filepath: str, filename: str, parent_id: str = None) -> str:
+    """Upload CSV file to Google Drive inside the specified folder."""
+    if not drive_service:
+        print("⚠️ Google Drive not available. Skipping upload.")
+        return ""
 
-    sp = spotipy.Spotify(auth=token_info["access_token"])
+    file_metadata = {"name": filename}
+    if parent_id:
+        file_metadata["parents"] = [parent_id]
 
-    # Get display name from session
-    custom_name: str = session.get("custom_name", "Unknown_User")
+    media = MediaFileUpload(filepath, mimetype="text/csv")
+    uploaded = drive_service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id, parents"
+    ).execute()
 
-    # Base folder for this user
-    user_dir = os.path.join("data", custom_name)
+    print(f"📤 Uploaded {filename} → folder {parent_id} (id: {uploaded.get('id')})")
+    return uploaded.get("id")
+
+def save_and_upload(df: pd.DataFrame, filepath: str, filename: str, parent_id: str = None):
+    """Save CSV locally and upload to Google Drive inside user folder."""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    df.to_csv(filepath, index=False)
+    print(f"✅ Saved {len(df)} rows to {filepath}")
+
+    try:
+        upload_to_drive(filepath, filename, parent_id=parent_id)
+    except Exception as e:
+        print(f"⚠️ Upload failed for {filename}: {e}")
+
+def save_all_user_data(sp: spotipy.Spotify, spotify_username: str, custom_name: str):
+    """Fetch full top data and save/upload CSVs (runs once after login)."""
+    user_dir = os.path.join("data", spotify_username)
     os.makedirs(user_dir, exist_ok=True)
 
-    # Helper: fetch up to 100 top tracks
-    def get_top_tracks(sp: spotipy.Spotify, time_range: str, total_limit: int = 100):
-        results = []
-        fetched = 0
+    def get_top_tracks(time_range: str, total_limit: int = 100):
+        results, fetched = [], 0
         while fetched < total_limit:
             batch = sp.current_user_top_tracks(
                 limit=min(50, total_limit - fetched),
@@ -92,59 +132,112 @@ def summary() -> str:
             fetched += len(batch)
         return results
 
-    # Collect for all time ranges
     time_ranges = ["short_term", "medium_term", "long_term"]
-    all_data = {}
+    user_folder_id = get_or_create_user_folder(custom_name)
 
     for tr in time_ranges:
         print(f"🔄 Collecting data for time range: {tr}")
-
-        # Make subfolders for each time range
         range_dir = os.path.join(user_dir, tr)
         os.makedirs(range_dir, exist_ok=True)
 
-        # --- Top Artists ---
+        # Top Artists
         artists = sp.current_user_top_artists(limit=20, time_range=tr).get("items", [])
         if artists:
-            artist_df = pd.DataFrame(
-                [{
-                    "Rank": i + 1,
-                    "Artist": a.get("name", "Unknown Artist"),
-                    "ID": a.get("id", "")
-                } for i, a in enumerate(artists)]
+            artist_df = pd.DataFrame([{
+                "Rank": i + 1,
+                "Artist": a.get("name", "Unknown Artist"),
+                "ID": a.get("id", "")
+            } for i, a in enumerate(artists)])
+            save_and_upload(
+                artist_df,
+                os.path.join(range_dir, "artists.csv"),
+                f"{spotify_username}_{tr}_artists.csv",
+                parent_id=user_folder_id
             )
-            artist_out = os.path.join(range_dir, "artists.csv")
-            artist_df.to_csv(artist_out, index=False)
-            print(f"✅ Saved {len(artist_df)} artists to {artist_out}")
-        else:
-            print(f"⚠️ No top artists found for {tr}")
 
-        # --- Top Tracks ---
-        tracks = get_top_tracks(sp, tr, total_limit=100) or []
+        # Top Tracks
+        tracks = get_top_tracks(tr, total_limit=100) or []
         if tracks:
-            track_df = pd.DataFrame(
-                [{
-                    "Rank": i + 1,
-                    "Track": t.get("name", "Unknown Track"),
-                    "Artist": (t.get("artists") or [{}])[0].get("name", "Unknown Artist"),
-                    "ID": t.get("id", "")
-                } for i, t in enumerate(tracks)]
+            track_df = pd.DataFrame([{
+                "Rank": i + 1,
+                "Track": t.get("name", "Unknown Track"),
+                "Artist": (t.get("artists") or [{}])[0].get("name", "Unknown Artist"),
+                "ID": t.get("id", "")
+            } for i, t in enumerate(tracks)])
+            save_and_upload(
+                track_df,
+                os.path.join(range_dir, "tracks.csv"),
+                f"{spotify_username}_{tr}_tracks.csv",
+                parent_id=user_folder_id
             )
-            track_out = os.path.join(range_dir, "tracks.csv")
-            track_df.to_csv(track_out, index=False)
-            print(f"✅ Saved {len(track_df)} tracks to {track_out}")
-        else:
-            print(f"⚠️ No top tracks found for {tr}")
 
-        all_data[tr] = {"artists": artists, "tracks": tracks}
+@app.route("/")
+def index():
+    """Landing page with name input + login button."""
+    return render_template("index.html")
 
-    # Which term to display
+@app.route("/login", methods=["POST"])
+def login():
+    """Save name and send user to Spotify auth page."""
+    session["custom_name"] = request.form.get("custom_name", "Unknown_User")
+    sp_oauth = SpotifyOAuth(
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
+        scope=SCOPE,
+    )
+    return redirect(sp_oauth.get_authorize_url())
+
+@app.route("/callback")
+def callback():
+    """Spotify redirects here after login approval and we save data once."""
+    sp_oauth = SpotifyOAuth(
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
+        scope=SCOPE,
+    )
+    code = request.args.get("code")
+    token_info = sp_oauth.get_access_token(code)
+    sp = spotipy.Spotify(auth=token_info["access_token"])
+
+    # ✅ Fetch Spotify profile
+    profile = sp.current_user()
+    spotify_username = profile.get("id", "UnknownSpotifyUser")
+    display_name = profile.get("display_name", spotify_username)
+
+    # Store only small values in session
+    session["token_info"] = token_info
+    session["spotify_username"] = spotify_username
+    session["display_name"] = display_name
+    session["custom_name"] = session.get("custom_name", "Unknown_User")
+
+    # Save CSVs + upload once
+    save_all_user_data(sp, spotify_username, session["custom_name"])
+
+    return redirect(url_for("summary"))
+
+@app.route("/summary")
+def summary() -> str:
+    """Fetch lightweight top artists/tracks for display (fresh API call)."""
+    token_info = session.get("token_info")
+    if not token_info:
+        return redirect(url_for("index"))
+
+    sp = spotipy.Spotify(auth=token_info["access_token"])
+    spotify_username = session.get("spotify_username")
+    display_name = session.get("display_name", spotify_username)
+
     time_range = request.args.get("time_range", "medium_term")
+
+    # Fresh API call just for display
+    artists = sp.current_user_top_artists(limit=10, time_range=time_range).get("items", [])
+    tracks = sp.current_user_top_tracks(limit=10, time_range=time_range).get("items", [])
 
     return render_template(
         "summary.html",
-        display_name=custom_name,
-        artists=all_data[time_range]["artists"][:10],
-        tracks=all_data[time_range]["tracks"][:10],
+        display_name=display_name,
+        artists=artists,
+        tracks=tracks,
         time_range=time_range,
     )

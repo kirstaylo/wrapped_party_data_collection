@@ -211,3 +211,6 @@ louis-is-magnificent/
 
 # Generated CSVs
 data/
+
+credentials.json
+token.json
