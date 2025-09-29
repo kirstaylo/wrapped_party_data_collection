@@ -195,6 +195,7 @@ def index():
 @app.route("/login", methods=["POST"])
 def login():
     """Save name and send user to Spotify auth page."""
+    session.clear()
     session["custom_name"] = request.form.get("custom_name", "Unknown_User")
     sp_oauth = SpotifyOAuth(
         client_id=CLIENT_ID,
