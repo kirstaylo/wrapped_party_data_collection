@@ -4,6 +4,7 @@ from flask import Flask, redirect, request, session, url_for, render_template
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
+import json
 
 # Google Drive imports (user OAuth)
 from google.oauth2.credentials import Credentials
@@ -28,18 +29,33 @@ drive_service = None
 FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
 def init_drive_service():
-    """Load Drive API client using token.json (from OAuth flow)."""
+    """Load Drive API client using token.json (from OAuth flow) or GOOGLE_TOKEN env var."""
     global drive_service
     try:
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file(
-                "token.json",
+        creds = None
+
+        # 1️⃣ Prefer env var on Heroku
+        google_token = os.getenv("GOOGLE_TOKEN")
+        if google_token:
+            creds = Credentials.from_authorized_user_info(
+                json.loads(google_token),
                 ["https://www.googleapis.com/auth/drive.file"]
             )
-            drive_service = build("drive", "v3", credentials=creds)
+            print("✅ Google Drive authenticated via GOOGLE_TOKEN env var")
+
+        # 2️⃣ Fallback to local token.json for dev
+        elif os.path.exists("token.json"):
+            creds = Credentials.from_authorized_user_file(
+                "token.json", ["https://www.googleapis.com/auth/drive.file"]
+            )
             print("✅ Google Drive authenticated via token.json")
+
         else:
-            print("⚠️ No token.json found. Run drive_auth.py first.")
+            print("⚠️ No Google credentials found. Run drive_auth.py first.")
+
+        if creds:
+            drive_service = build("drive", "v3", credentials=creds)
+
     except Exception as e:
         print(f"⚠️ Failed to init Google Drive service: {e}")
         drive_service = None
